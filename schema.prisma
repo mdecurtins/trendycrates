@@ -1,0 +1,142 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model categories {
+  id                Int                 @id @default(autoincrement())
+  category          String              @unique @db.VarChar
+  slug              String              @unique @db.VarChar
+  description       String              @default("") @db.VarChar
+  crates_cnt        Int                 @default(0)
+  created_at        DateTime            @default(now()) @db.Timestamptz(6)
+  path              String              @db.VarChar()
+  crates_categories crates_categories[]
+
+  ///@@index([path], map: "path_gist_categories_idx", type: Gist)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model crate_downloads {
+  crate_id  Int    @id(map: "crate_downloads_pk")
+  downloads BigInt @default(0)
+  crates    crates @relation(fields: [crate_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "crate_downloads_crates_id_fk")
+
+  @@index([downloads(sort: Desc), crate_id(sort: Desc)], map: "crate_downloads_downloads_crate_id_index")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model crates {
+  id                Int                 @id(map: "packages_pkey") @default(autoincrement())
+  name              String              @db.VarChar
+  updated_at        DateTime            @default(now()) @db.Timestamptz(6)
+  created_at        DateTime            @default(now()) @db.Timestamptz(6)
+  description       String?             @db.VarChar
+  homepage          String?             @db.VarChar
+  repository        String?             @db.VarChar
+  crate_downloads   crate_downloads?
+  crates_categories crates_categories[]
+  crates_keywords   crates_keywords[]
+  default_versions  default_versions?
+  versions          versions[]
+
+  @@index([created_at], map: "index_crate_created_at")
+  @@index([updated_at], map: "index_crate_updated_at")
+  @@index([name], map: "index_crates_name_ordering")
+}
+
+model crates_categories {
+  crate_id    Int
+  category_id Int
+  categories  categories @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_crates_categories_category_id")
+  crates      crates     @relation(fields: [crate_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_crates_categories_crate_id")
+
+  @@id([crate_id, category_id])
+  @@index([category_id], map: "index_crates_categories_category_id")
+  @@index([crate_id], map: "index_crates_categories_crate_id")
+}
+
+model crates_keywords {
+  crate_id   Int
+  keyword_id Int
+  crates     crates   @relation(fields: [crate_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_crates_keywords_crate_id")
+  keywords   keywords @relation(fields: [keyword_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_crates_keywords_keyword_id")
+
+  @@id([crate_id, keyword_id])
+  @@index([crate_id], map: "index_crates_keywords_crate_id")
+  @@index([keyword_id], map: "index_crates_keywords_keyword_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+model default_versions {
+  crate_id     Int      @id(map: "default_versions_pk")
+  version_id   Int      @unique(map: "default_versions_version_id_uindex")
+  num_versions Int?
+  crates       crates   @relation(fields: [crate_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "default_versions_crates_id_fk")
+  versions     versions @relation(fields: [version_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "default_versions_versions_id_fk")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model keywords {
+  id              Int               @id @default(autoincrement())
+  keyword         String            @unique
+  crates_cnt      Int               @default(0)
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  crates_keywords crates_keywords[]
+
+  @@index([crates_cnt], map: "index_keywords_crates_cnt")
+  @@index([keyword], map: "index_keywords_keyword")
+}
+
+model metadata {
+  total_downloads BigInt @id
+}
+
+model version_downloads {
+  version_id Int
+  downloads  Int      @default(1)
+  counted    Int      @default(0)
+  date       DateTime @default(dbgenerated("('now'::text)::date")) @db.Date
+  processed  Boolean  @default(false)
+  versions   versions @relation(fields: [version_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_version_downloads_version_id")
+
+  @@id([version_id, date])
+  @@index([date], map: "index_version_downloads_date", type: Brin)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model versions {
+  id                Int                 @id @default(autoincrement())
+  crate_id          Int
+  num               String              @db.VarChar
+  updated_at        DateTime            @default(now()) @db.Timestamptz(6)
+  created_at        DateTime            @default(now()) @db.Timestamptz(6)
+  downloads         Int                 @default(0)
+  yanked            Boolean             @default(false)
+  license           String?             @db.VarChar
+  crate_size        Int
+  rust_version      String?             @db.VarChar
+  has_lib           Boolean?
+  bin_names         String[]
+  yank_message      String?
+  num_no_build      String              @db.VarChar
+  edition           String?
+  description       String?
+  homepage          String?
+  documentation     String?
+  repository        String?
+  categories        String[]            @default([])
+  keywords          String[]            @default([])
+  semver_ord        Json?
+  default_versions  default_versions?
+  version_downloads version_downloads[]
+  crates            crates              @relation(fields: [crate_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_versions_crate_id")
+
+  @@unique([crate_id, num], map: "unique_num")
+  @@unique([crate_id, num_no_build], map: "versions_crate_id_num_no_build_uindex")
+}
