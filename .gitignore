@@ -21,6 +21,7 @@
 /build
 
 # misc
+*.backup
 .DS_Store
 *.pem
 db/
@@ -43,3 +44,8 @@ next-env.d.ts
 
 # ides
 .idea
+.vscode/
+
+# Docker
+docker-compose.yml
+Dockerfile
